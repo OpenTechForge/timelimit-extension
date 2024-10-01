@@ -1,0 +1,57 @@
+:root {
+  --bg-color: #ffffff;
+  --text-color: #333333;
+  --highlight-color: #d9534f;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-color: #222222;
+    --text-color: #f0f0f0;
+    --highlight-color: #ff6b6b;
+  }
+}
+
+body {
+    font-family: Arial, sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+}
+.container {
+    background-color: white;
+    padding: 20px;
+    border-radius: 10px;
+    text-align: center;
+    max-width: 80%;
+}
+
+h1 {
+    color: #333;
+}
+
+#passcodeForm {
+    margin-top: 20px;
+}
+input, button {
+    margin: 5px;
+    padding: 5px;
+}
+
+a {
+  color: var(--highlight-color);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 600px) {
+  body {
+    padding: 10px;
+  }
+}

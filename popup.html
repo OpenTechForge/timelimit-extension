@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>TimeLimit Settings</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <h1>TimeLimit Settings</h1>
+    <div id="domainSets"></div>
+    <button id="addDomainSet">Add Domain Set</button>
+
+    <div id="globalBlockingSettings">
+      <h3>Global Blocking</h3>
+      <label>
+        <input type="checkbox" id="globalBlockingEnabled">
+        Enable Global Blocking
+      </label>
+      <div>
+        <label for="globalBlockingStart">Start Time:</label>
+        <input type="time" id="globalBlockingStart">
+      </div>
+      <div>
+        <label for="globalBlockingEnd">End Time:</label>
+        <input type="time" id="globalBlockingEnd">
+      </div>
+      <button id="saveGlobalBlocking">Save Global Blocking Settings</button>
+    </div>
+
+    <div class="sync-settings">
+      <label>
+        <input type="checkbox" id="showTimer"> Show Timer
+      </label>
+      <br><br>
+      <button id="openAuthPage">Open Sync Setup Page</button>
+      <div id="syncCodeContainer" style="display: none;">
+        <p>Your Sync Code:</p>
+        <input type="text" id="syncCodeDisplay" readonly />
+        <button id="copySyncCodeButton">Copy Sync Code</button>
+      </div>
+
+      <!-- Additional sync settings (if any) -->
+      <label>
+        <input type="checkbox" id="syncEnabled"> Enable Sync
+      </label>
+      <input type="text" id="syncCode" placeholder="Enter Sync Code">
+      <button id="verifySyncCodeButton">Verify Sync Code</button>
+      <button id="saveSync">Save Sync Settings</button>
+    </div>
+  </div>
+
+  <!-- Include Firebase scripts -->
+  <script src="firebase/firebase-app-compat.js"></script>
+  <script src="firebase/firebase-database-compat.js"></script>
+  <script src="firebase/firebase-auth-compat.js"></script>
+  <script src="firebase-config.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

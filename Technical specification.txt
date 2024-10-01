@@ -1,0 +1,82 @@
+We need to write a chrome/firefox extension that can be supported by both android and computer versions that limits time spent on each domain set like "youtube,youtu.be" (and have both strict and non-strict mode - non-string is ignoring www. and m. in comparison, allowing the site to be a subdomain). If show timer option is on, then show timer on such pages on top left corner. if domain satisfies more than one domain sets, then decrease time left on all of them, but show the least time left among them give user an ability to configure these domain sets (add, delete, edit) and an ability to configure the time limit for each of them. And an ability to reset any of these timers. The configuration should show the up-to-date time left for each of these domainSets too. after the time limit is reached, the extension should block the page with the half-transparent background (to the direction of the color that is in the color scheme, like in night mode it should be what is default in night mode), and say 
+"Daily screen time
+Ready to close <domain-name>?
+You've spent <...time spent on the domain set that matches and has timeLeft <=0, basically which blocked this domain, and write it like 1h 30m ...> on <.. domain set that blocked...> today. To support your well-being, your daily screen time is set to (... 1 hour, 30 minutes.. or something of the sorts depending on the limit ... ). Close the site to stay within your daily time, or enter passcode 1234 to return to <domain-name>. 
+big gray 1234 that you can write over it, and if you write it sets 30 minutes timeLeft to the timeLeft in all domainsets that blocked this site
+
+Finally, there should be an option to both use the local version and a synced devices version. Synced devices version uses syncCode you write to store the data in firebase database, so that these timers and domain sets are synchronized between the devices that use same syncCode
+
+In order to support stable and precise timers:
+- there should be just one 1s timer that can decrease local timers during whole background.js execution, to avoid the confusion on when the timers get updated. It should in effect just see the matching timers and decrease those
+- the updates related to the firebase/storage should happen asynchronously, and should not get crowded if they take longer than a second to be done. If it takes 5 seconds to sync with the firebase properly, let it be 5 seconds. And we should wait for our last update to come back before we issue another one. And if there arrives some other-stamped update, even if its lastUpdateTime is lower, we should still prioritize it because it might be a settings change which we do not want to override
+
+We need to ensure that the changes to settings made are applied immediately too:
+We need to ensure that all devices receive and use new settings correctly. The way to do so in firebase mode is to use increment(-seconds) capabilities of firebase fields. If I understand correctly, this is atomic action made on the server side. If we could just store timeLeft as something from the last update to storage/source of truth AND seconds passed as seconds passed from that moment, we could just send increment(-seconds passed) to the field, and think that timeLeft-timeLeft is the actual number of seconds that is left. And only if reset happens, we use real update of timeLeft and not decrement. This way, even if reset happens, and we got it after we've sent our update, we don't mess up with this time limit reset
+
+And yes, if we write a new sync code, it should load the settings from this sync code, but if the code is not known by the system, the existing settings written should be saved to it instead, rather than uploading empty configuration from the firebase
+
+Also, the popup should look fine when opened as a separate tab, even on smartphone, too. This means it should be neatly centered.
+
+Finally, for better user experience, the input in settings should support "40 minutes" and "1 hour 30 minutes" and "HH:MM:SS" format and "MM:SS" format. 
+
+And time left should always be in HH:MM:SS format, to avoid confusion
+
+Design should be super user-friendly and neat
+
+Manifest that we can adapt is:
+{
+  "manifest_version": 2,
+  "name": "...",
+  "version": "1.3.3",
+  "description": "...",
+  "permissions": [
+    "storage",
+    "<all_urls>",
+    "tabs"
+  ],
+  "background": {
+    "scripts": [
+      "firebase/firebase-app-compat.js",
+      "firebase/firebase-database-compat.js",
+      "firebase-config.js",
+      "background.js"
+    ],
+    "persistent": false
+  },
+  "browser_action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "48": "logo.png"
+    }
+  },
+  "options_ui": {
+    "page": "popup.html",
+    "open_in_tab": true
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": [
+        "firebase/firebase-app-compat.js",
+        "firebase/firebase-database-compat.js",
+        "firebase-config.js",
+        "content_script.js"
+      ]
+    }
+  ],
+  "web_accessible_resources": [
+    "popup.css",
+    "blocked.css",
+    "blocked.html",
+    "logo.png",
+    "blocked.js",
+    "firebase/firebase-app-compat.js.map",
+    "firebase/firebase-database-compat.js.map"
+  ],
+  "applications": {
+    "gecko": {
+      "id": "time-limit@123e4567-e89b-12d3-a456-426614174001",
+      "strict_min_version": "58.0"
+    }
+  }
+}
