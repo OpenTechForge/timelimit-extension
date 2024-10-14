@@ -23,7 +23,21 @@ import {
   SET_LAST_SETTINGS_UPDATE_DATE
 } from './types';
 import { getDatabase, ref, off, update, onValue, set, serverTimestamp, Unsubscribe } from 'firebase/database';
-import { mergeUpdates, getLeastTimeLeft, matchDomain } from './utils';
+import { mergeUpdates, getLeastTimeLeft, matchDomain, formatTime } from './utils';
+import { configureStore } from '@reduxjs/toolkit';
+import { rootReducer } from './reducers';
+import { ports } from './background';
+import thunk from 'redux-thunk';
+import { initializeDatabase } from './firebase-config';
+
+// Store setup
+const store = configureStore({
+  reducer: rootReducer,
+  middleware: (getDefaultMiddleware) => getDefaultMiddleware(),
+  devTools: process.env.NODE_ENV !== 'production',
+});
+
+export default store;
 
 // Action Types
 interface SetSettingsAction extends Action<typeof SET_SETTINGS> {
@@ -136,7 +150,7 @@ export function setLastSettingsUpdateDate(date: number): SetLastSettingsUpdateDa
 }
 
 // Thunks
-export function loadSettings(): ThunkAction<void, AppState, unknown, Action<string>> {
+export function loadSettings(): ThunkAction<Promise<void>, AppState, unknown, Action<string>> {
   return function (dispatch) {
     console.log('Loading settings...');
     return new Promise<void>((resolve) => {
@@ -144,7 +158,6 @@ export function loadSettings(): ThunkAction<void, AppState, unknown, Action<stri
         ['settings', 'syncEnabled', 'syncCode', 'showTimer', 'globalBlockingOverrideUntil'],
         function (result) {
           console.log('Loaded settings:', result);
-
           const settings: Settings = result.settings || {
             domainSets: {},
             globalBlocking: {
@@ -154,7 +167,6 @@ export function loadSettings(): ThunkAction<void, AppState, unknown, Action<stri
             lastSettingsUpdateDate: Date.now(),
             lastUpdateTime: Date.now(),
           };
-
           const domainSets: { [key: string]: DomainSet } = {};
           const rawDomainSets = settings.domainSets || {};
           for (const id in rawDomainSets) {
@@ -166,16 +178,12 @@ export function loadSettings(): ThunkAction<void, AppState, unknown, Action<stri
               }
             }
           }
-
           settings.domainSets = domainSets;
-          settings.lastUpdateTime = settings.lastUpdateTime || Date.now();
-
           dispatch(setSettings(settings));
           dispatch(setSyncEnabled(result.syncEnabled || false));
           dispatch(setSyncCode(result.syncCode || ''));
           dispatch(setShowTimer(result.showTimer !== undefined ? result.showTimer : true));
           dispatch(setGlobalBlockingOverride(result.globalBlockingOverrideUntil || null));
-
           if (result.syncEnabled) {
             console.log('Sync is enabled, initializing Firebase sync');
             dispatch(initializeFirebaseSync());
@@ -187,39 +195,50 @@ export function loadSettings(): ThunkAction<void, AppState, unknown, Action<stri
   };
 }
 
-export function initializeFirebaseSync(): ThunkAction<void, AppState, unknown, Action<string>> {
-  return function (dispatch, getState): void {
+export function initializeFirebaseSync(): ThunkAction<Promise<void>, AppState, unknown, Action<string>> {
+  return function (dispatch, getState): Promise<void> {
     dispatch(setSyncInitialized(false));
     console.log('Initializing Firebase sync');
 
+    initializeDatabase();
     const state = getState();
     const syncCode = state.syncCode;
+
     if (!syncCode) {
       console.error('No sync code available for synchronization');
-      return;
+      return Promise.reject(new Error('No sync code available for synchronization'));
     }
 
     const db = getDatabase();
     const refSettings = ref(db, 'syncCodes/' + syncCode + '/settings');
 
-    // Set up Firebase listener
-    onValue(refSettings, (snapshot) => {
-      if (snapshot.exists()) {
-        const data = snapshot.val();
-        dispatch(handleIncomingUpdate(data));
-      } else {
-        console.log('No existing data in Firebase, uploading current settings');
-        dispatch(uploadCurrentSettingsToFirebase());
-      }
-    }, (error) => {
-      console.error('Error initializing Firebase sync:', error);
-      dispatch(setSyncInitialized(false));
-    });
+    return new Promise<void>((resolve, reject) => {
+      // Set up Firebase listener
+      onValue(
+        refSettings,
+        (snapshot) => {
+          if (snapshot.exists()) {
+            const data = snapshot.val();
+            dispatch(handleIncomingUpdate(data));
+            resolve(); // Successfully initialized sync
+          } else {
+            console.log('No existing data in Firebase, uploading current settings');
+            dispatch(uploadCurrentSettingsToFirebase()).then(resolve).catch(reject);
+          }
+        },
+        (error) => {
+          console.error('Error initializing Firebase sync:', error);
+          dispatch(setSyncInitialized(false));
+          reject(error); // Reject on error
+        }
+      );
 
-    dispatch(setSyncInitialized(true));
-    chrome.runtime.sendMessage({ action: 'syncSettingsChanged' });
+      dispatch(setSyncInitialized(true));
+      chrome.runtime.sendMessage({ action: 'syncSettingsChanged' });
+    });
   };
 }
+
 
 export function uploadCurrentSettingsToFirebase(): ThunkAction<Promise<void>, AppState, unknown, Action<string>> {
   return function (dispatch, getState) {
@@ -228,7 +247,6 @@ export function uploadCurrentSettingsToFirebase(): ThunkAction<Promise<void>, Ap
       settings: {
         domainSets: { ...state.settings.domainSets },
         globalBlocking: state.settings.globalBlocking,
-        lastUpdateTime: serverTimestamp(),
         lastSettingsUpdateDate: state.settings.lastSettingsUpdateDate,
       },
     };
@@ -282,6 +300,7 @@ export function updateStorage(updateFirebase = true): ThunkAction<Promise<void>,
         showTimer: state.showTimer,
         globalBlockingOverrideUntil: state.globalBlockingOverrideUntil || null,
       };
+      console.log('Data to store in chrome.storage.sync:', dataToStore);
 
       chrome.storage.sync.set(dataToStore, function () {
         if (state.syncEnabled && state.syncInitialized && updateFirebase) {
@@ -376,7 +395,6 @@ export function syncToFirebase(): ThunkAction<Promise<void>, AppState, unknown, 
     return update(refSettings, {
       domainSets: { ...state.settings.domainSets },
       globalBlocking: state.settings.globalBlocking,
-      lastUpdateTime: serverTimestamp(),
       lastSettingsUpdateDate: state.settings.lastSettingsUpdateDate || Date.now(),
     })
       .then(() => {
@@ -397,14 +415,16 @@ export function notifyTimerUpdates(): ThunkAction<void, AppState, unknown, Actio
 export function onTimersUpdated(): ThunkAction<void, AppState, unknown, Action<string>> {
   return function (dispatch, getState) {
     const state = getState();
+    if(!state.activeTabId) return;
     const { leastTimeLeft, anyTimerExpired, expiredSet } = getLeastTimeLeft(state);
 
     if (anyTimerExpired && expiredSet) {
       console.log('Timer expired, redirecting to blocked page');
       const timeSpent = formatTime(expiredSet.timeSpent);
       const timeLimit = formatTime(expiredSet.timeLimit);
+
       chrome.tabs.update(state.activeTabId, {
-        url: `blocked.html?domain=${state.activeTabDomain}&timeSpent=${timeSpent}&domainSet=${expiredSet.domains.join(
+        url: `dist/blocked.html?domain=${state.activeTabDomain}&timeSpent=${timeSpent}&domainSet=${expiredSet.domains.join(
           ','
         )}&timeLimit=${timeLimit}`,
       });

@@ -1,6 +1,3 @@
-import { configureStore } from '@reduxjs/toolkit';
-import { rootReducer } from './reducers';
-import thunk from 'redux-thunk';
 import { getDatabase, ref, update, onValue, set, serverTimestamp, off } from 'firebase/database';
 import {
   initializeFirebaseSync,
@@ -10,26 +7,28 @@ import {
   setSyncCode,
   setSyncEnabled,
   setSyncInitialized,
-  syncToFirebase
+  syncToFirebase,
+  updateStorage,
+  deleteDomainSet,
+  addDomainSet,
+  resetTimer,
+  extendTime,
+  setShowTimer,
+  applySyncSettingsUpdate,
+  setSettings
 } from './actions';
+import { getLeastTimeLeft, mergeUpdates } from './utils';
+import store from './actions';
 import { AppState } from './types';
 
-// Store setup
-const store = configureStore({
-  reducer: rootReducer,
-  middleware: (getDefaultMiddleware) => getDefaultMiddleware(),
-  devTools: process.env.NODE_ENV !== 'production',
-});
-
-export default store;
-
-// Manage ports (Map to track tabs and associated ports)
-const ports = new Map<number, chrome.runtime.Port>();
+export const ports = new Map<number, chrome.runtime.Port>();
 
 // Listen for incoming connections from content scripts
 chrome.runtime.onConnect.addListener((port) => {
-  const tabId = Number(port.name); // Assuming the port name is set as the tabId
-  if (!isNaN(tabId)) {
+  // Extract the tabId from the port's sender if available
+  const tabId = port.sender?.tab?.id;
+  
+  if (tabId !== undefined) {
     ports.set(tabId, port);
 
     // Handle messages from the port
@@ -55,6 +54,8 @@ chrome.runtime.onConnect.addListener((port) => {
     port.onDisconnect.addListener(() => {
       ports.delete(tabId);
     });
+  } else {
+    console.error('Failed to retrieve tabId from port sender');
   }
 });
 
@@ -72,8 +73,6 @@ function getDomain(url: string): string | null {
 // Sync settings to Firebase
 setInterval(() => {
   const state: AppState = store.getState();
-  const now = Date.now();
-  const secondsPassedSinceUpdate = (now - state.lastUpdateTime) / 1000;
 
   if (state.syncEnabled && state.syncInitialized) {
     store.dispatch(syncToFirebase())
@@ -86,16 +85,30 @@ setInterval(() => {
 // Listen for tab activation
 chrome.tabs.onActivated.addListener((activeInfo) => {
   chrome.tabs.get(activeInfo.tabId, (tab) => {
-    store.dispatch(setActiveTab(tab.id, getDomain(tab.url)));
-    store.dispatch(updateActiveTabTimer());
+    if(tab.id && tab.url)
+    {
+      const domain = getDomain(tab.url);
+      if(domain)
+      {
+        store.dispatch(setActiveTab(tab.id, domain));
+        store.dispatch(updateActiveTabTimer());
+      }
+    }
   });
 });
 
 // Listen for tab updates
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (changeInfo.status === 'complete' && tab.active) {
-    store.dispatch(setActiveTab(tab.id, getDomain(tab.url)));
-    store.dispatch(updateActiveTabTimer());
+    if(tab.id && tab.url)
+    {
+      const domain = getDomain(tab.url);
+      if(domain)
+      {
+        store.dispatch(setActiveTab(tab.id, domain));
+        store.dispatch(updateActiveTabTimer());
+      }
+    }
   }
 });
 
@@ -112,6 +125,15 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   const state: AppState = store.getState();
 
   if (request.action === 'updateSettings') {
+    console.log('Updating settings');
+    const currentState = store.getState();
+
+    // Merge the incoming settings with the current settings
+    const mergedSettings = mergeUpdates(currentState.settings, request.settings);
+
+    // Dispatch action to update the store with the merged settings
+    store.dispatch(setSettings(mergedSettings));
+
     store.dispatch(updateStorage())
       .then(() => {
         console.log('Settings updated successfully');
@@ -134,7 +156,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 
   if (request.action === 'signOut') {
-    // Clear sync state and disable sync
     store.dispatch(setSyncEnabled(false));
     store.dispatch(setSyncCode(''));
     store.dispatch(setSyncInitialized(false));
@@ -142,7 +163,91 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true;
   }
 
-  return false;
+  if (request.action === 'applySyncCode') {
+    const syncCode = request.syncCode;
+    if (syncCode.length !== 40) {
+      sendResponse({ success: false, error: 'Invalid Sync Code' });
+      return;
+    }
+
+    store.dispatch(setSyncCode(syncCode));
+    store.dispatch(setSyncEnabled(true));
+
+    chrome.storage.sync.set({ syncCode, syncEnabled: true }, () => {
+      store.dispatch(initializeFirebaseSync())
+        .then(() => sendResponse({ success: true }))
+        .catch((error) => sendResponse({ success: false, error: error.message }));
+    });
+
+    return true;
+  }
+
+  if (request.action === 'deleteDomainSet') {
+    store.dispatch(deleteDomainSet(request.id))
+      .then(() => sendResponse({ success: true }))
+      .catch((error) => {
+        console.error('Error deleting domain set:', error);
+        sendResponse({ success: false, error });
+      });
+    return true;
+  }
+
+  if (request.action === 'addDomainSet') {
+    store.dispatch(addDomainSet(request.set))
+      .then(() => sendResponse({ success: true }))
+      .catch((error) => sendResponse({ success: false, error }));
+    return true;
+  }
+
+  if (request.action === 'resetTimer') {
+    store.dispatch(resetTimer(request.setId))
+      .then(() => sendResponse({ success: true }))
+      .catch((error) => sendResponse({ success: false, error }));
+    return true;
+  }
+
+  if (request.action === 'extendTime') {
+    store.dispatch(extendTime(request.domain, request.minutes))
+      .then(() => sendResponse({ success: true }))
+      .catch((error) => sendResponse({ success: false, error }));
+    return true;
+  }
+
+  if (request.action === 'updateShowTimer') {
+    store.dispatch(setShowTimer(request.showTimer));
+    chrome.storage.sync.set({ showTimer: request.showTimer }, () => {
+      ports.forEach((port) => {
+        port.postMessage({ action: 'updateShowTimer', showTimer: request.showTimer });
+      });
+      sendResponse({ success: true });
+    });
+    return true;
+  }
+
+  if (request.action === 'getShowTimer') {
+    sendResponse({ showTimer: state.showTimer });
+    return true;
+  }
+
+  if (request.action === 'updateSyncSettings') {
+    store.dispatch(applySyncSettingsUpdate(request.syncEnabled, request.syncCode))
+      .then(() => sendResponse({ success: true }))
+      .catch((error) => sendResponse({ success: false, error }));
+    return true;
+  }
+
+  if (request.action === 'getFullState') {
+    sendResponse({
+      settings: state.settings,
+      syncEnabled: state.syncEnabled,
+      syncCode: state.syncCode,
+      showTimer: state.showTimer,
+    });
+    return true;
+  }
+
+  console.warn('Unknown action received:', request.action);
+  return true; // Indicates that the response is sent asynchronously
 });
 
 console.log('Background script initialized.');

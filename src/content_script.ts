@@ -1,5 +1,7 @@
 // content_script.ts
 
+import { formatTime } from "./utils";
+
 let timerElement: HTMLDivElement | null = null;
 let timerEndTime: number | null = null;
 let timerRequestId: number | null = null;
@@ -22,13 +24,6 @@ function createTimerElement(): void {
     timerElement.style.display = 'none';
     document.body.appendChild(timerElement);
   }
-}
-
-function formatTime(seconds: number): string {
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  const remainingSeconds = Math.floor(seconds % 60);
-  return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
 }
 
 function updateTimerDisplay(timeLeft: number | null): void {

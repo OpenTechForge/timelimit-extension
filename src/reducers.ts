@@ -1,47 +1,31 @@
 // reducers.ts
 
-import { Settings, DomainSet, GlobalBlocking } from './types'; // Assuming types are defined
-
-// Define the shape of the initial state
-interface RootState {
-  settings: Settings;
-  syncEnabled: boolean;
-  syncCode: string;
-  syncInitialized: boolean;
-  activeTabId: number | null;
-  activeTabDomain: string | null;
-  lastUpdateTime: number;
-  isUpdatingTimers: boolean;
-  showTimer: boolean;
-  globalBlockingOverrideUntil: number | null;
-  lastSettingsUpdateDate: number;
-}
+import { Settings, DomainSet, GlobalBlocking, AppState } from './types'; // Assuming types are defined
 
 // Initial state
-const initialState: RootState = {
+const initialState: AppState = {
   settings: {
     domainSets: {},
     globalBlocking: {
       enabled: false,
       schedule: [],
     },
-    lastSettingsUpdateDate: Date.now(),
-    lastUpdateTime: Date.now(),
+    lastSettingsUpdateDate: Date.now()
   },
   syncEnabled: false,
   syncCode: '',
   syncInitialized: false,
-  activeTabId: null,
-  activeTabDomain: null,
+  activeTabId: undefined,
+  activeTabDomain: undefined,
   lastUpdateTime: Date.now(),
   isUpdatingTimers: false,
   showTimer: true,
-  globalBlockingOverrideUntil: null,
+  globalBlockingOverrideUntil: undefined,
   lastSettingsUpdateDate: Date.now(),
 };
 
 // Reducer
-export function rootReducer(state = initialState, action: any): RootState {
+export function rootReducer(state = initialState, action: any): AppState {
   switch (action.type) {
     case 'SET_DOMAIN_SETS':
       return {

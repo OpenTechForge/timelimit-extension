@@ -2,53 +2,18 @@ import { getAuth, GoogleAuthProvider, User, signInWithCustomToken, signInWithCre
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { initializeApp } from 'firebase/app';
 import { firebaseConfig } from './firebase-config'; // Assuming firebaseConfig is defined in firebase-config.ts
+import { formatTime } from './utils';
 
 // Initialize Firebase App and Services
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const functions = getFunctions(app);
+// const app = initializeApp(firebaseConfig);
+// const auth = getAuth(app);
+// const functions = getFunctions(app);
 
 let domainSets: { [key: string]: any } = {};
 let globalBlocking: { enabled: boolean; schedule: any[] } = { enabled: false, schedule: [] };
 
 // Google Auth Provider
 const provider = new GoogleAuthProvider();
-
-// Handle sign-in success
-function handleSignInSuccess(user: User): void {
-  const syncCodeContainer = document.getElementById('syncCodeContainer') as HTMLElement;
-  syncCodeContainer.style.display = 'block';
-
-  // Send a message to background.ts to fetch or generate the sync code
-  chrome.runtime.sendMessage({ action: 'getSyncCode', uid: user.uid }, (response) => {
-    if (response.success) {
-      const syncCodeDisplay = document.getElementById('syncCodeDisplay') as HTMLInputElement;
-      syncCodeDisplay.value = response.syncCode;
-    } else {
-      console.error('Failed to get sync code:', response.error);
-      alert('Failed to get sync code: ' + response.error);
-    }
-  });
-}
-
-// Handle sign-out success
-function handleSignOutSuccess(): void {
-  const syncCodeContainer = document.getElementById('syncCodeContainer') as HTMLElement;
-  syncCodeContainer.style.display = 'none';
-  const syncCodeDisplay = document.getElementById('syncCodeDisplay') as HTMLInputElement;
-  syncCodeDisplay.value = '';
-}
-
-// Listen for authentication state changes
-auth.onAuthStateChanged((user) => {
-  if (user) {
-    console.log('User is signed in:', user);
-    handleSignInSuccess(user);
-  } else {
-    console.log('No user is signed in');
-    handleSignOutSuccess();
-  }
-});
 
 // Event listeners for sign-in and sign-out
 const openAuthPageBtn = document.getElementById('openAuthPage') as HTMLElement;
@@ -211,16 +176,6 @@ function parseTime(timeString: string): number {
 
   const seconds = parseInt(timeString);
   return isNaN(seconds) ? 0 : seconds;
-}
-
-// Function to format time in seconds into HH:MM:SS
-function formatTime(seconds: number): string {
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  const remainingSeconds = Math.floor(seconds % 60);
-  return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${remainingSeconds
-    .toString()
-    .padStart(2, '0')}`;
 }
 
 // Function to save global blocking settings

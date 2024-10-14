@@ -1,1 +1,17 @@
 *.zip
+node_modules
+dist/background.js
+dist/background.js.LICENSE.txt
+dist/background.js.map
+dist/blocked.css
+dist/blocked.html
+dist/blocked.js
+dist/blocked.js.map
+dist/content_script.js
+dist/content_script.js.map
+dist/popup.css
+dist/popup.html
+dist/popup.js
+dist/popup.js.LICENSE.txt
+dist/popup.js.map
+package-lock.json

@@ -15,22 +15,25 @@ export const firebaseConfig = {
   appId: '1:371863881692:web:a69a8d95c9eefaf5d23119',
 };
 
-// Initialize Firebase app
-const app = initializeApp(firebaseConfig);
+export function initializeDatabase()
+{
+    // Initialize Firebase app
+    const app = initializeApp(firebaseConfig);
 
-// Initialize Firebase services
-const auth = getAuth(app);
-const database = getDatabase(app);
+    // Initialize Firebase services
+    const auth = getAuth(app);
+    const database = getDatabase(app);
 
-// Anonymous sign-in
-signInAnonymously(auth)
-  .then(() => {
-    console.log('Anonymous authentication successful');
-  })
-  .catch((error) => {
-    console.error('Anonymous authentication failed:', error);
-  });
+    // Anonymous sign-in
+    signInAnonymously(auth)
+      .then(() => {
+        console.log('Anonymous authentication successful');
+      })
+      .catch((error) => {
+        console.error('Anonymous authentication failed:', error);
+      });
 
-console.log('Firebase initialized');
+    console.log('Firebase initialized');
+}
 
-export { auth, database };
+// export { auth, database };

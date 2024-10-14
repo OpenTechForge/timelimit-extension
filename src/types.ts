@@ -44,7 +44,6 @@ export interface Settings {
   domainSets: { [key: string]: DomainSet };
   globalBlocking: GlobalBlocking;
   lastSettingsUpdateDate: number;
-  lastUpdateTime: number;
 }
 
 // Redux State
@@ -56,10 +55,11 @@ export interface AppState {
   syncInitialized: boolean;
   activeTabId?: number;
   activeTabDomain?: string;
-  lastUpdateTime: number;
   isUpdatingTimers: boolean;
   showTimer: boolean;
   globalBlockingOverrideUntil?: number;
+  lastSettingsUpdateDate?: number;
+  lastUpdateTime: number
 }
 
 // Action Interfaces
@@ -104,11 +104,6 @@ export interface SetActiveTabAction {
   payload: { id: number; domain: string };
 }
 
-export interface SetLastUpdateTimeAction {
-  type: typeof SET_LAST_UPDATE_TIME;
-  payload: number;
-}
-
 export interface StartUpdatingTimersAction {
   type: typeof START_UPDATING_TIMERS;
 }
@@ -143,7 +138,6 @@ export type AppActions =
   | SetSyncCodeAction
   | SetSyncInitializedAction
   | SetActiveTabAction
-  | SetLastUpdateTimeAction
   | StartUpdatingTimersAction
   | FinishUpdatingTimersAction
   | SetShowTimerAction

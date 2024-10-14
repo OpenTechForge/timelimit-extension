@@ -21,22 +21,30 @@ export function matchDomain(domain: string | undefined | null, pattern: string, 
   }
 }
 
-export function sanitizeDomainSet(set: any): any {
+export function formatTime(seconds: number): string {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const remainingSeconds = Math.floor(seconds % 60);
+  return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+}
+
+export function sanitizeDomainSet(set: any): DomainSet {
   return {
+    id: typeof set.id === 'string' ? set.id : set.id.toString(),
     domains: Array.isArray(set.domains) ? set.domains : [],
-    timeSpent: typeof set.timeSpent === 'number' ? set.timeSpent : 0,
-    timeLeft: typeof set.timeLeft === 'number' ? set.timeLeft : (typeof set.timeLimit === 'number' ? set.timeLimit : 0),
-    timeLimit: typeof set.timeLimit === 'number' ? set.timeLimit : 0,
     strictMode: typeof set.strictMode === 'boolean' ? set.strictMode : false,
-    lastResetDate: typeof set.lastResetDate === 'number' ? set.lastResetDate : Date.now(),
-    lastSessionStart: typeof set.lastSessionStart === 'number' ? set.lastSessionStart : 0,
-    lastSessionEnd: typeof set.lastSessionEnd === 'number' ? set.lastSessionEnd : 0,
+    timeLimit: typeof set.timeLimit === 'number' ? set.timeLimit : 0,
+    timeLeft: typeof set.timeLeft === 'number' ? set.timeLeft : 0,
+    timeSpent: typeof set.timeSpent === 'number' ? set.timeSpent : 0,
+    lastSessionStart: typeof set.lastSessionStart === 'number' ? set.lastSessionStart : undefined,
+    lastSessionEnd: typeof set.lastSessionEnd === 'number' ? set.lastSessionEnd : undefined,
     lastSessionActive: typeof set.lastSessionActive === 'boolean' ? set.lastSessionActive : false,
+    lastResetDate: typeof set.lastResetDate === 'number' ? set.lastResetDate : undefined
   };
 }
 
-export function mergeUpdates(localState: any, remoteUpdate: any): any {
-  const mergedState = { ...localState };
+export function mergeUpdates(localState: Settings, remoteUpdate: any): Settings {
+  const mergedState = localState;
 
   if ((remoteUpdate.lastSettingsUpdateDate || 0) > (localState.lastSettingsUpdateDate || 0)) {
     Object.assign(mergedState, remoteUpdate);
@@ -63,6 +71,10 @@ export function mergeUpdates(localState: any, remoteUpdate: any): any {
         } else {
           mergedSet.timeSpent = Math.max(localSet.timeSpent || 0, remoteSet.timeSpent || 0);
           mergedSet.timeLeft = Math.min(localSet.timeLeft || Infinity, remoteSet.timeLeft || Infinity);
+          if(mergedSet.timeLeft === Infinity)
+          {
+            mergedSet.timeLeft = localSet.timeLeft;
+          }
         }
 
         domainSetsById[id] = mergedSet;
@@ -76,7 +88,7 @@ export function mergeUpdates(localState: any, remoteUpdate: any): any {
   return mergedState;
 }
 
-import { AppState, DomainSet } from './types';
+import { AppState, DomainSet, Settings } from './types';
 
 export function getLeastTimeLeft(state: AppState) {
   let leastTimeLeft: number = Infinity;
@@ -86,7 +98,7 @@ export function getLeastTimeLeft(state: AppState) {
   const domainSets = state.settings.domainSets;
   const activeTabDomain = state.activeTabDomain;
 
-  Object.values(domainSets).forEach((set) => {
+  for (const set of Object.values(domainSets)) {
     if (
      set.domains.some((d) => matchDomain(activeTabDomain, d, set.strictMode))
     ) {
@@ -99,7 +111,7 @@ export function getLeastTimeLeft(state: AppState) {
         }
       }
     }
-  });
+  }
 
   return {
     leastTimeLeft: leastTimeLeft === Infinity ? null : Math.max(0, leastTimeLeft),
