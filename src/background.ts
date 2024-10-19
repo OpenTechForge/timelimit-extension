@@ -15,7 +15,8 @@ import {
   extendTime,
   setShowTimer,
   applySyncSettingsUpdate,
-  setSettings
+  setSettings,
+  updateTimers
 } from './actions';
 import { getLeastTimeLeft, mergeUpdates } from './utils';
 import store from './actions';
@@ -70,17 +71,24 @@ function getDomain(url: string): string | null {
   }
 }
 
-// Sync settings to Firebase
+// Update timers and sync settings to Firebase
 setInterval(() => {
   const state: AppState = store.getState();
 
+  store.dispatch(updateTimers()).catch((error) => {
+    console.error('Error updating timers', error);
+  });
+}, 1000);
+
+setInterval(() => {
+  const state: AppState = store.getState();
   if (state.syncEnabled && state.syncInitialized) {
     store.dispatch(syncToFirebase())
       .catch((error) => {
         console.error('Error syncing to Firebase:', error);
       });
   }
-}, 1000);
+}, 5000);
 
 // Listen for tab activation
 chrome.tabs.onActivated.addListener((activeInfo) => {

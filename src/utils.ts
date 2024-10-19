@@ -1,4 +1,6 @@
 // utils.ts
+import { AppState, DomainSet, Settings } from './types';
+import { cloneDeep } from 'lodash';
 
 export function generateRandomCode(length: number): string {
   const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -44,8 +46,10 @@ export function sanitizeDomainSet(set: any): DomainSet {
 }
 
 export function mergeUpdates(localState: Settings, remoteUpdate: any): Settings {
-  const mergedState = localState;
+  // Create a deep copy of localState to avoid mutation
+  const mergedState = { ...localState };
 
+  // Merge settings if remote update is newer
   if ((remoteUpdate.lastSettingsUpdateDate || 0) > (localState.lastSettingsUpdateDate || 0)) {
     Object.assign(mergedState, remoteUpdate);
   }
@@ -53,7 +57,8 @@ export function mergeUpdates(localState: Settings, remoteUpdate: any): Settings 
   const localDomainSets = localState.domainSets || {};
   const remoteDomainSets = remoteUpdate.domainSets || {};
 
-  const domainSetsById: any = { ...localDomainSets };
+  // Create a new object to store merged domain sets
+  const domainSetsById = cloneDeep(mergedState.domainSets);
 
   for (const id in remoteDomainSets) {
     if (remoteDomainSets.hasOwnProperty(id)) {
@@ -65,14 +70,13 @@ export function mergeUpdates(localState: Settings, remoteUpdate: any): Settings 
         mergedSet = sanitizeDomainSet(mergedSet);
 
         if ((remoteSet.lastResetDate || 0) > (localSet.lastResetDate || 0)) {
-          mergedSet = { ...remoteSet };
+          mergedSet = { ...sanitizeDomainSet(remoteSet) };
         } else if ((localSet.lastResetDate || 0) > (remoteSet.lastResetDate || 0)) {
           mergedSet = { ...localSet };
         } else {
           mergedSet.timeSpent = Math.max(localSet.timeSpent || 0, remoteSet.timeSpent || 0);
           mergedSet.timeLeft = Math.min(localSet.timeLeft || Infinity, remoteSet.timeLeft || Infinity);
-          if(mergedSet.timeLeft === Infinity)
-          {
+          if (mergedSet.timeLeft === Infinity) {
             mergedSet.timeLeft = localSet.timeLeft;
           }
         }
@@ -84,11 +88,11 @@ export function mergeUpdates(localState: Settings, remoteUpdate: any): Settings 
     }
   }
 
-  mergedState.domainSets = domainSetsById;
+  // Ensure a new object is assigned to avoid mutating the original state
+  mergedState.domainSets = { ...domainSetsById };
+
   return mergedState;
 }
-
-import { AppState, DomainSet, Settings } from './types';
 
 export function getLeastTimeLeft(state: AppState) {
   let leastTimeLeft: number = Infinity;

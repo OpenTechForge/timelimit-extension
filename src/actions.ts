@@ -29,6 +29,7 @@ import { rootReducer } from './reducers';
 import { ports } from './background';
 import thunk from 'redux-thunk';
 import { initializeDatabase } from './firebase-config';
+import { cloneDeep } from 'lodash';
 
 // Store setup
 const store = configureStore({
@@ -178,8 +179,11 @@ export function loadSettings(): ThunkAction<Promise<void>, AppState, unknown, Ac
               }
             }
           }
-          settings.domainSets = domainSets;
-          dispatch(setSettings(settings));
+
+          const updatedSettings = cloneDeep(settings);
+          updatedSettings.domainSets = cloneDeep(domainSets);
+
+          dispatch(setSettings(updatedSettings));
           dispatch(setSyncEnabled(result.syncEnabled || false));
           dispatch(setSyncCode(result.syncCode || ''));
           dispatch(setShowTimer(result.showTimer !== undefined ? result.showTimer : true));
@@ -228,7 +232,6 @@ export function initializeFirebaseSync(): ThunkAction<Promise<void>, AppState, u
         },
         (error) => {
           console.error('Error initializing Firebase sync:', error);
-          dispatch(setSyncInitialized(false));
           reject(error); // Reject on error
         }
       );
@@ -341,7 +344,7 @@ export function updateTimers(): ThunkAction<Promise<void>, AppState, unknown, Ac
         const newTimeLeft = Math.max(0, (set.timeLeft || 0) - secondsPassed);
 
         updates[set.id] = {
-          ...set,
+          ...cloneDeep(set),
           timeSpent: newTimeSpent,
           timeLeft: newTimeLeft,
           lastSessionActive: true,
@@ -350,7 +353,7 @@ export function updateTimers(): ThunkAction<Promise<void>, AppState, unknown, Ac
         };
       } else if (set.lastSessionActive) {
         updates[set.id] = {
-          ...set,
+          ...cloneDeep(set),
           lastSessionEnd: now,
           lastSessionActive: false,
         };
@@ -496,7 +499,7 @@ export function resetTimer(setId: string): ThunkAction<Promise<void>, AppState, 
       const now = Date.now();
       const updates = {
         [setId]: {
-          ...set,
+          ...cloneDeep(set),
           timeLeft: typeof set.timeLimit === 'number' ? set.timeLimit : 3600,
           timeSpent: 0,
           lastSessionStart: now,

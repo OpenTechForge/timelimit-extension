@@ -143,4 +143,14 @@ export type AppActions =
   | SetShowTimerAction
   | SetGlobalBlockingOverrideAction
   | SetLastSettingsUpdateDateAction;
-  
+
+export interface GlobalBlocking {
+  enabled: boolean;
+  schedule: Schedule[];
+}
+
+export interface Schedule {
+  days: number[];  // Days of the week [0 = Sunday, 6 = Saturday]
+  startTime: string;  // Start time in HH:MM
+  endTime: string;    // End time in HH:MM
+}

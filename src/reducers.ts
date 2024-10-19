@@ -1,6 +1,7 @@
 // reducers.ts
 
 import { Settings, DomainSet, GlobalBlocking, AppState } from './types'; // Assuming types are defined
+import { cloneDeep } from 'lodash';
 
 // Initial state
 const initialState: AppState = {
@@ -32,7 +33,7 @@ export function rootReducer(state = initialState, action: any): AppState {
         ...state,
         settings: {
           ...state.settings,
-          domainSets: action.payload,
+          domainSets: cloneDeep(action.payload),
         },
       };
 
@@ -42,8 +43,8 @@ export function rootReducer(state = initialState, action: any): AppState {
         settings: {
           ...state.settings,
           domainSets: {
-            ...state.settings.domainSets,
-            ...action.payload,
+            ...cloneDeep(state.settings.domainSets),
+            ...cloneDeep(action.payload),
           },
         },
       };
@@ -53,7 +54,7 @@ export function rootReducer(state = initialState, action: any): AppState {
         ...state,
         settings: {
           ...state.settings,
-          globalBlocking: action.payload,
+          globalBlocking: cloneDeep(action.payload),
         },
       };
 
@@ -91,14 +92,14 @@ export function rootReducer(state = initialState, action: any): AppState {
     case 'SET_SETTINGS':
       return {
         ...state,
-        settings: action.payload,
+        settings: cloneDeep(action.payload),
       };
 
     case 'SET_LAST_SETTINGS_UPDATE_DATE':
       return {
         ...state,
         settings: {
-          ...state.settings,
+          ...cloneDeep(state.settings),
           lastSettingsUpdateDate: action.payload,
         },
       };

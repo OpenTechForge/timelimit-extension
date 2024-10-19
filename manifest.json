@@ -44,7 +44,11 @@
     "dist/blocked.css",
     "dist/blocked.html",
     "logo.png",
-    "dist/blocked.js"
+    "dist/blocked.js",
+    "dist/background.js.map",
+    "dist/popup.js.map",
+    "dist/blocked.js.map",
+    "dist/content_script.js.map"
   ],
   "applications": {
     "gecko": {

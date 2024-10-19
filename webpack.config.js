@@ -33,7 +33,8 @@ module.exports = {
       },
     ],
   },
-  devtool: 'source-map',
+  mode: 'development',
+  devtool: 'source-map',  // Use inline source maps for better accuracy
   plugins: [
     new CopyWebpackPlugin({
       patterns: [
