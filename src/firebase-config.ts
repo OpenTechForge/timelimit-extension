@@ -15,25 +15,30 @@ export const firebaseConfig = {
   appId: '1:371863881692:web:a69a8d95c9eefaf5d23119',
 };
 
-export function initializeDatabase()
-{
-    // Initialize Firebase app
-    const app = initializeApp(firebaseConfig);
+export function initializeDatabase(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    try {
+      // Initialize Firebase app
+      const app = initializeApp(firebaseConfig);
 
-    // Initialize Firebase services
-    const auth = getAuth(app);
-    const database = getDatabase(app);
+      // Initialize Firebase services
+      const auth = getAuth(app);
+      const database = getDatabase(app);
 
-    // Anonymous sign-in
-    signInAnonymously(auth)
-      .then(() => {
-        console.log('Anonymous authentication successful');
-      })
-      .catch((error) => {
-        console.error('Anonymous authentication failed:', error);
-      });
-
-    console.log('Firebase initialized');
+      // Anonymous sign-in
+      signInAnonymously(auth)
+        .then(() => {
+          console.log('Anonymous authentication successful');
+          console.log('Firebase initialized');
+          resolve(); // Resolve the promise when sign-in is successful
+        })
+        .catch((error) => {
+          console.error('Anonymous authentication failed:', error);
+          reject(error); // Reject the promise if sign-in fails
+        });
+    } catch (error) {
+      console.error('Firebase initialization error:', error);
+      reject(error); // Reject the promise if there's any error during initialization
+    }
+  });
 }
-
-// export { auth, database };
