@@ -28,24 +28,21 @@
       <button id="saveGlobalBlocking">Save Global Blocking Settings</button>
     </div>
 
-    <div class="sync-settings">
+    <div class="local-settings">
       <label>
         <input type="checkbox" id="showTimer"> Show Timer
       </label>
       <br><br>
       <button id="openAuthPage">Open Sync Setup Page</button>
-      <div id="syncCodeContainer" style="display: none;">
-        <p>Your Sync Code:</p>
-        <input type="text" id="syncCodeDisplay" readonly />
-        <button id="copySyncCodeButton">Copy Sync Code</button>
-      </div>
-
-      <!-- Additional sync settings (if any) -->
       <label>
         <input type="checkbox" id="syncEnabled"> Enable Sync
       </label>
-      <input type="text" id="syncCode" placeholder="Enter Sync Code">
-      <button id="saveSync">Save Sync Settings</button>
+      <div id="syncDetails" style="display: none;">
+        <p>Your Sync Code:</p>
+        <input type="text" id="syncCodeInput" placeholder="Enter or view Sync Code" />
+        <button id="copySyncCodeButton">Copy Sync Code</button>
+        <button id="saveSyncButton">Save Sync Settings</button>
+      </div>
     </div>
   </div>
 

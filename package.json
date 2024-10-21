@@ -4,9 +4,7 @@
   "description": "",
   "main": "actions.js",
   "scripts": {
-    "build": "webpack --mode production",
-    "build:dev": "webpack --mode development",
-    "watch": "webpack --watch"
+    "build": "node esbuild.config.js"
   },
   "keywords": [],
   "author": "",
@@ -20,6 +18,8 @@
     "@types/redux-thunk": "^2.1.0",
     "@types/webextension-polyfill": "^0.12.1",
     "copy-webpack-plugin": "^12.0.2",
+    "esbuild": "^0.24.0",
+    "esbuild-plugin-copy": "^2.1.1",
     "lodash": "^4.17.21",
     "source-map-loader": "^5.0.0",
     "ts-loader": "^9.5.1",

@@ -223,12 +223,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
   if (request.action === 'updateShowTimer') {
     store.dispatch(setShowTimer(request.showTimer));
-    chrome.storage.sync.set({ showTimer: request.showTimer }, () => {
-      ports.forEach((port) => {
-        port.postMessage({ action: 'updateShowTimer', showTimer: request.showTimer });
-      });
-      sendResponse({ success: true });
-    });
+    store.dispatch(updateStorage(false))
+      .then(() => {
+        ports.forEach((port) => {
+          port.postMessage({ action: 'updateShowTimer', showTimer: request.showTimer });
+        });
+        sendResponse({ success: true });
+      })
+      .catch((error) => sendResponse({ success: false, error }));
     return true;
   }
 
@@ -239,12 +241,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
   if (request.action === 'updateSyncSettings') {
     store.dispatch(applySyncSettingsUpdate(request.syncEnabled, request.syncCode))
-      .then(() => sendResponse({ success: true }))
+      .then(() => {console.log('sending response to update sync settings');sendResponse({ success: true })})
       .catch((error) => sendResponse({ success: false, error }));
     return true;
   }
 
   if (request.action === 'getFullState') {
+    console.log("Sending the full state", state);
     sendResponse({
       settings: state.settings,
       syncEnabled: state.syncEnabled,

@@ -1,0 +1,59 @@
+{
+  "manifest_version": 2,
+  "name": "TimeLimit",
+  "version": "1.3.5",
+  "description": "Limit time spent on specified domain sets.",
+  "permissions": [
+    "storage",
+    "<all_urls>",
+    "tabs",
+    "identity"
+  ],
+  "content_security_policy": "script-src 'self' https://*.firebaseio.com https://*.firebasedatabase.app https://apis.google.com https://*.gstatic.com; object-src 'self'",
+  "externally_connectable": {
+    "matches": ["https://timelimit-extension.firebaseapp.com/*",
+                "https://timelimit-extension.web.app/*"]
+  },
+  "background": {
+    "scripts": [
+      "background.js"
+    ],
+    "persistent": false
+  },
+  "browser_action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "48": "logo.png"
+    }
+  },
+  "options_ui": {
+    "page": "popup.html",
+    "open_in_tab": true
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": [
+        "content_script.js"
+      ],
+      "run_at": "document_start"
+    }
+  ],
+  "web_accessible_resources": [
+    "popup.css",
+    "blocked.css",
+    "blocked.html",
+    "logo.png",
+    "blocked.js",
+    "background.js.map",
+    "popup.js.map",
+    "blocked.js.map",
+    "content_script.js.map"
+  ],
+  "applications": {
+    "gecko": {
+      "id": "time-limit@123e4567-e89b-12d3-a456-426614174001",
+      "strict_min_version": "58.0"
+    }
+  }
+}

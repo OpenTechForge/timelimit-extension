@@ -4,30 +4,85 @@ import { initializeApp } from 'firebase/app';
 import { firebaseConfig } from './firebase-config'; // Assuming firebaseConfig is defined in firebase-config.ts
 import { formatTime } from './utils';
 
-// Initialize Firebase App and Services
-// const app = initializeApp(firebaseConfig);
-// const auth = getAuth(app);
-// const functions = getFunctions(app);
-
 let domainSets: { [key: string]: any } = {};
 let globalBlocking: { enabled: boolean; schedule: any[] } = { enabled: false, schedule: [] };
 
 // Google Auth Provider
 const provider = new GoogleAuthProvider();
 
-// Event listeners for sign-in and sign-out
-const openAuthPageBtn = document.getElementById('openAuthPage') as HTMLElement;
-openAuthPageBtn.addEventListener('click', () => {
-  const authUrl = 'https://timelimit-extension.firebaseapp.com/auth.html';
-  chrome.tabs.create({ url: authUrl });
-});
+document.addEventListener('DOMContentLoaded', () => {
+  // Elements for sync settings
+  const openAuthPageBtn = document.getElementById('openAuthPage') as HTMLElement;
+  const syncEnabledCheckbox = document.getElementById('syncEnabled') as HTMLInputElement;
+  const syncCodeInput = document.getElementById('syncCodeInput') as HTMLInputElement;
+  const saveSyncButton = document.getElementById('saveSyncButton') as HTMLElement;
+  const syncDetails = document.getElementById('syncDetails') as HTMLElement;
+  const copySyncCodeButton = document.getElementById('copySyncCodeButton') as HTMLElement;
 
-const copySyncCodeButton = document.getElementById('copySyncCodeButton') as HTMLElement;
-copySyncCodeButton.addEventListener('click', () => {
-  const syncCode = (document.getElementById('syncCodeDisplay') as HTMLInputElement).value;
-  navigator.clipboard.writeText(syncCode).then(() => {
-    alert('Sync Code copied to clipboard!');
+  // Event listeners for sign-in and sign-out
+  openAuthPageBtn.addEventListener('click', () => {
+    const authUrl = 'https://timelimit-extension.firebaseapp.com/auth.html';
+    chrome.tabs.create({ url: authUrl });
   });
+
+  // Handle Sync Code Copy
+  copySyncCodeButton.addEventListener('click', () => {
+    const syncCode = syncCodeInput.value;
+    if (syncCode) {
+      navigator.clipboard.writeText(syncCode).then(() => {
+        alert('Sync Code copied to clipboard!');
+      });
+    }
+  });
+
+  // Handle sync enable/disable visibility
+  syncEnabledCheckbox.addEventListener('change', () => {
+    const isSyncEnabled = syncEnabledCheckbox.checked;
+    syncDetails.style.display = isSyncEnabled ? 'block' : 'none';
+  });
+
+  // Save Sync Settings
+  saveSyncButton.addEventListener('click', () => {
+    const syncEnabled = syncEnabledCheckbox.checked;
+    const syncCode = syncCodeInput.value.trim();
+
+
+    chrome.runtime.sendMessage(
+      {
+        action: 'updateSyncSettings',
+        syncEnabled: syncEnabled,
+        syncCode: syncCode,
+      },
+      (response) => {
+        if (response.success) {
+          console.log('Saved sync settings in popup!');
+          loadSettings(); // Now, this runs only after the settings are updated in the background script
+        } else {
+          console.error('Failed to save sync settings:', response.error);
+        }
+      }
+    );
+  });
+
+  // Event listeners for UI interactions
+  document.getElementById('addDomainSet')!.addEventListener('click', addDomainSet);
+  document.getElementById('saveGlobalBlocking')!.addEventListener('click', saveGlobalBlockingSettings);
+  document.getElementById('domainSets')!.addEventListener('change', saveDomainSets);
+  document.getElementById('showTimer')!.addEventListener('change', (e) => {
+    console.log("update show timer");
+    chrome.runtime.sendMessage(
+      {
+        action: 'updateShowTimer',
+        showTimer: (e.target as HTMLInputElement).checked,
+      },
+      () => {
+        loadSettings();
+      }
+    );
+  });
+
+  // Load settings when the popup is opened
+  loadSettings();
 });
 
 // Function to render domain sets
@@ -209,39 +264,21 @@ function saveGlobalBlockingSettings(): void {
   );
 }
 
-// Function to save sync settings
-function saveSyncSettings(): void {
-  const syncEnabled = (document.getElementById('syncEnabled') as HTMLInputElement).checked;
-  const syncCode = (document.getElementById('syncCode') as HTMLInputElement).value;
-  chrome.runtime.sendMessage(
-    {
-      action: 'updateSyncSettings',
-      syncEnabled,
-      syncCode,
-    },
-    () => {
-      console.log('Saved sync settings in popup!');
-    }
-  );
-}
-
-// Listen for messages from background.ts
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.action === 'syncSettingsChanged') {
-    loadSettings();
-  }
-});
-
 // Function to load settings from background.ts
 function loadSettings(): void {
   chrome.runtime.sendMessage({ action: 'getFullState' }, (response) => {
     const settings = response.settings || {};
     domainSets = settings.domainSets || {};
     globalBlocking = settings.globalBlocking || { enabled: false, schedule: [] };
-    const syncEnabled = document.getElementById('syncEnabled') as HTMLInputElement;
-    syncEnabled.checked = response.syncEnabled;
-    const syncCode = document.getElementById('syncCode') as HTMLInputElement;
-    syncCode.value = response.syncCode || '';
+
+    const syncEnabledCheckbox = document.getElementById('syncEnabled') as HTMLInputElement;
+    const syncCodeInput = document.getElementById('syncCodeInput') as HTMLInputElement;
+    const syncDetails = document.getElementById('syncDetails') as HTMLElement;
+
+    syncEnabledCheckbox.checked = response.syncEnabled || false;
+    syncCodeInput.value = response.syncCode || '';
+    syncDetails.style.display = syncEnabledCheckbox.checked ? 'block' : 'none';
+
     const showTimer = document.getElementById('showTimer') as HTMLInputElement;
     showTimer.checked = response.showTimer || false;
 
@@ -249,23 +286,3 @@ function loadSettings(): void {
     renderDomainSets();
   });
 }
-
-// Event listeners for UI interactions
-document.getElementById('addDomainSet')!.addEventListener('click', addDomainSet);
-document.getElementById('saveSync')!.addEventListener('click', saveSyncSettings);
-document.getElementById('domainSets')!.addEventListener('change', saveDomainSets);
-document.getElementById('saveGlobalBlocking')!.addEventListener('click', saveGlobalBlockingSettings);
-document.getElementById('showTimer')!.addEventListener('change', (e) => {
-  chrome.runtime.sendMessage(
-    {
-      action: 'updateShowTimer',
-      showTimer: (e.target as HTMLInputElement).checked,
-    },
-    () => {
-      loadSettings();
-    }
-  );
-});
-
-// Load settings when the popup is opened
-loadSettings();

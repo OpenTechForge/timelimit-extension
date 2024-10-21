@@ -217,31 +217,56 @@ export function initializeFirebaseSync(): ThunkAction<Promise<void>, AppState, u
     const refSettings = ref(db, 'syncCodes/' + syncCode + '/settings');
 
     return new Promise<void>((resolve, reject) => {
-      // Set up Firebase listener
+      // First, handle the initial state by getting the current data once.
       onValue(
         refSettings,
         (snapshot) => {
           if (snapshot.exists()) {
             const data = snapshot.val();
-            dispatch(handleIncomingUpdate(data));
-            resolve(); // Successfully initialized sync
+            console.log('First initialization: overriding local settings with Firebase data');
+            dispatch(processUpdate(data)); // Replace local settings entirely with Firebase data
+            dispatch(updateStorage(false))
+              .then(() => {
+                resolve(); // Successfully initialized sync
+              })
+              .catch(reject);
           } else {
             console.log('No existing data in Firebase, uploading current settings');
-            dispatch(uploadCurrentSettingsToFirebase()).then(resolve).catch(reject);
+            dispatch(uploadCurrentSettingsToFirebase())
+              .then(() => {
+                resolve(); // Successfully uploaded local settings
+              })
+              .catch(reject);
           }
+
+          // After the initial handling, subscribe to ongoing updates.
+          off(refSettings); // Unsubscribe from the initial snapshot listener.
+          // Set up a new listener for future updates.
+          onValue(
+            refSettings,
+            (snapshot) => {
+              if (snapshot.exists()) {
+                const data = snapshot.val();
+                dispatch(handleIncomingUpdate(data)); // Use merge logic for subsequent updates.
+              }
+            },
+            (error) => {
+              console.error('Error during Firebase sync update:', error);
+            }
+          );
+
+          console.log("done initializing");
+          dispatch(setSyncInitialized(true));
+          chrome.runtime.sendMessage({ action: 'syncSettingsChanged' });
         },
         (error) => {
           console.error('Error initializing Firebase sync:', error);
           reject(error); // Reject on error
         }
       );
-
-      dispatch(setSyncInitialized(true));
-      chrome.runtime.sendMessage({ action: 'syncSettingsChanged' });
     });
   };
 }
-
 
 export function uploadCurrentSettingsToFirebase(): ThunkAction<Promise<void>, AppState, unknown, Action<string>> {
   return function (dispatch, getState) {
@@ -427,7 +452,7 @@ export function onTimersUpdated(): ThunkAction<void, AppState, unknown, Action<s
       const timeLimit = formatTime(expiredSet.timeLimit);
 
       chrome.tabs.update(state.activeTabId, {
-        url: `dist/blocked.html?domain=${state.activeTabDomain}&timeSpent=${timeSpent}&domainSet=${expiredSet.domains.join(
+        url: `blocked.html?domain=${state.activeTabDomain}&timeSpent=${timeSpent}&domainSet=${expiredSet.domains.join(
           ','
         )}&timeLimit=${timeLimit}`,
       });
@@ -591,7 +616,7 @@ export function extendTime(
               return matchDomain(activeTabDomain, d, set.strictMode);
             })
           ) {
-            updates[id] = { ...set, timeLeft: set.timeLeft + minutes * 60 };
+            updates[id] = { ...set, timeLeft: set.timeLeft + minutes * 60, lastResetDate: Date.now() };
           }
         });
 
@@ -601,6 +626,7 @@ export function extendTime(
             ...getState().settings,
             domainSets: updatedDomainSets,
           };
+          console.log("pushing new settings", newSettings);
           dispatch(setSettings(newSettings));
         }
 
@@ -634,9 +660,12 @@ export function applySyncSettingsUpdate(
 
     return dispatch(updateStorage()).then(() => {
       console.log('Storage updated after sync settings change');
+      
+      let promiseChain: Promise<void> = Promise.resolve();
+    
       if (!oldSyncEnabled && newSyncEnabled) {
         console.log('Sync was turned on');
-        dispatch(initializeFirebaseSync());
+        promiseChain = dispatch(initializeFirebaseSync());
       } else if (oldSyncEnabled && !newSyncEnabled) {
         console.log('Sync was turned off');
         const db = getDatabase();
@@ -649,10 +678,12 @@ export function applySyncSettingsUpdate(
         const refSettings = ref(db, 'syncCodes/' + oldSyncCode + '/settings');
         off(refSettings);
         console.log('Removed old Firebase listeners');
-        dispatch(initializeFirebaseSync());
+        promiseChain = dispatch(initializeFirebaseSync());
       }
-
-      dispatch(updateActiveTabTimer());
-    });
+    
+      return promiseChain.then(() => {
+        dispatch(updateActiveTabTimer());
+      });
+    });    
   };
 }
