@@ -38,10 +38,12 @@ module.exports = {
   plugins: [
     new CopyWebpackPlugin({
       patterns: [
+        { from: 'src/manifest.json', to: '.' },
         { from: 'src/popup.html', to: '.' },
         { from: 'src/blocked.html', to: '.' },
         { from: 'src/popup.css', to: '.' },
-        { from: 'src/blocked.css', to: '.' }
+        { from: 'src/blocked.css', to: '.' },
+        { from: 'src/logo.png', to: '.' },  // Assuming you have icons in 'src/icons'
       ],
     }),
   ],
