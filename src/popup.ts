@@ -1,14 +1,7 @@
-import { getAuth, GoogleAuthProvider, User, signInWithCustomToken, signInWithCredential } from 'firebase/auth';
-import { getFunctions, httpsCallable } from 'firebase/functions';
-import { initializeApp } from 'firebase/app';
-import { firebaseConfig } from './services/firebaseConfig'; // Assuming firebaseConfig is defined in firebase-config.ts
 import { formatTime } from './utils';
 
 let domainSets: { [key: string]: any } = {};
 let globalBlocking: { enabled: boolean; schedule: any[] } = { enabled: false, schedule: [] };
-
-// Google Auth Provider
-const provider = new GoogleAuthProvider();
 
 document.addEventListener('DOMContentLoaded', () => {
   // Elements for sync settings
