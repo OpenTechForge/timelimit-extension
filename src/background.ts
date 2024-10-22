@@ -75,7 +75,9 @@ function getDomain(url: string): string | null {
 setInterval(() => {
   const state: AppState = store.getState();
 
-  store.dispatch(updateTimers()).catch((error) => {
+  store.dispatch(updateTimers())
+    .then(() => { store.dispatch(updateActiveTabTimer()); })
+    .catch((error) => {
     console.error('Error updating timers', error);
   });
 }, 1000);
