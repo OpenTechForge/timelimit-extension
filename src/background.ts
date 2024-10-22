@@ -121,7 +121,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   }
 });
 
-// Initialize Firebase Sync when the extension starts
+// Initialize backend Sync when the extension starts
 store.dispatch(loadSettings()).then(() => {
   const state: AppState = store.getState();
   if (state.syncEnabled) {
