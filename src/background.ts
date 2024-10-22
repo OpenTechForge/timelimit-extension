@@ -1,13 +1,13 @@
 import { getDatabase, ref, update, onValue, set, serverTimestamp, off } from 'firebase/database';
 import {
-  initializeFirebaseSync,
+  initializeBackendSync,
   setActiveTab,
   updateActiveTabTimer,
   loadSettings,
   setSyncCode,
   setSyncEnabled,
   setSyncInitialized,
-  syncToFirebase,
+  syncToBackend,
   updateStorage,
   deleteDomainSet,
   addDomainSet,
@@ -85,7 +85,7 @@ setInterval(() => {
 setInterval(() => {
   const state: AppState = store.getState();
   if (state.syncEnabled && state.syncInitialized) {
-    store.dispatch(syncToFirebase())
+    store.dispatch(syncToBackend())
       .catch((error) => {
         console.error('Error syncing to Firebase:', error);
       });
@@ -126,7 +126,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 store.dispatch(loadSettings()).then(() => {
   const state: AppState = store.getState();
   if (state.syncEnabled) {
-    store.dispatch(initializeFirebaseSync());
+    store.dispatch(initializeBackendSync());
   }
 });
 
@@ -160,7 +160,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     const syncCode = request.syncCode;
     store.dispatch(setSyncCode(syncCode));
     store.dispatch(setSyncEnabled(true));
-    store.dispatch(initializeFirebaseSync());
+    store.dispatch(initializeBackendSync());
     sendResponse({ success: true });
     return true;
   }
@@ -184,7 +184,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     store.dispatch(setSyncEnabled(true));
 
     chrome.storage.sync.set({ syncCode, syncEnabled: true }, () => {
-      store.dispatch(initializeFirebaseSync())
+      store.dispatch(initializeBackendSync())
         .then(() => sendResponse({ success: true }))
         .catch((error) => sendResponse({ success: false, error: error.message }));
     });

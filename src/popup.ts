@@ -1,7 +1,7 @@
 import { getAuth, GoogleAuthProvider, User, signInWithCustomToken, signInWithCredential } from 'firebase/auth';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { initializeApp } from 'firebase/app';
-import { firebaseConfig } from './firebase-config'; // Assuming firebaseConfig is defined in firebase-config.ts
+import { firebaseConfig } from './services/firebaseConfig'; // Assuming firebaseConfig is defined in firebase-config.ts
 import { formatTime } from './utils';
 
 let domainSets: { [key: string]: any } = {};
