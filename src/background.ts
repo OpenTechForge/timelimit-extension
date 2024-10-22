@@ -1,4 +1,3 @@
-import { getDatabase, ref, update, onValue, set, serverTimestamp, off } from 'firebase/database';
 import {
   initializeBackendSync,
   setActiveTab,
@@ -71,7 +70,7 @@ function getDomain(url: string): string | null {
   }
 }
 
-// Update timers and sync settings to Firebase
+// Update timers and sync settings to backend
 setInterval(() => {
   const state: AppState = store.getState();
 
@@ -87,7 +86,7 @@ setInterval(() => {
   if (state.syncEnabled && state.syncInitialized) {
     store.dispatch(syncToBackend())
       .catch((error) => {
-        console.error('Error syncing to Firebase:', error);
+        console.error('Error syncing to backend:', error);
       });
   }
 }, 5000);
