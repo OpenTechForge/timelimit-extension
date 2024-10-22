@@ -22,7 +22,6 @@ import {
   SET_GLOBAL_BLOCKING_OVERRIDE,
   SET_LAST_SETTINGS_UPDATE_DATE
 } from './types';
-import { getDatabase, ref, off, update, onValue, set, serverTimestamp, Unsubscribe } from 'firebase/database';
 import { mergeUpdates, getLeastTimeLeft, matchDomain, formatTime } from './utils';
 import { configureStore } from '@reduxjs/toolkit';
 import { rootReducer } from './reducers';
@@ -627,16 +626,12 @@ export function applySyncSettingsUpdate(
         promiseChain = dispatch(initializeBackendSync());
       } else if (oldSyncEnabled && !newSyncEnabled) {
         console.log('Sync was turned off');
-        const db = getDatabase();
-        const refSettings = ref(db, 'syncCodes/' + oldSyncCode + '/settings');
-        off(refSettings);
-        console.log('Removed Firebase listeners');
+        backendService.removeListeners(oldSyncCode);
+        console.log('Removed backend listeners');
       } else if (newSyncEnabled && oldSyncCode !== newSyncCode) {
         console.log('Sync code was changed');
-        const db = getDatabase();
-        const refSettings = ref(db, 'syncCodes/' + oldSyncCode + '/settings');
-        off(refSettings);
-        console.log('Removed old Firebase listeners');
+        backendService.removeListeners(oldSyncCode);
+        console.log('Removed old backend listeners');
         promiseChain = dispatch(initializeBackendSync());
       }
 
