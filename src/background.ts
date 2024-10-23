@@ -1,13 +1,12 @@
-import { getDatabase, ref, update, onValue, set, serverTimestamp, off } from 'firebase/database';
 import {
-  initializeFirebaseSync,
+  initializeBackendSync,
   setActiveTab,
   updateActiveTabTimer,
   loadSettings,
   setSyncCode,
   setSyncEnabled,
   setSyncInitialized,
-  syncToFirebase,
+  syncToBackend,
   updateStorage,
   deleteDomainSet,
   addDomainSet,
@@ -71,7 +70,7 @@ function getDomain(url: string): string | null {
   }
 }
 
-// Update timers and sync settings to Firebase
+// Update timers and sync settings to backend
 setInterval(() => {
   const state: AppState = store.getState();
 
@@ -85,9 +84,9 @@ setInterval(() => {
 setInterval(() => {
   const state: AppState = store.getState();
   if (state.syncEnabled && state.syncInitialized) {
-    store.dispatch(syncToFirebase())
+    store.dispatch(syncToBackend())
       .catch((error) => {
-        console.error('Error syncing to Firebase:', error);
+        console.error('Error syncing to backend:', error);
       });
   }
 }, 5000);
@@ -122,11 +121,11 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   }
 });
 
-// Initialize Firebase Sync when the extension starts
+// Initialize backend Sync when the extension starts
 store.dispatch(loadSettings()).then(() => {
   const state: AppState = store.getState();
   if (state.syncEnabled) {
-    store.dispatch(initializeFirebaseSync());
+    store.dispatch(initializeBackendSync());
   }
 });
 
@@ -160,7 +159,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     const syncCode = request.syncCode;
     store.dispatch(setSyncCode(syncCode));
     store.dispatch(setSyncEnabled(true));
-    store.dispatch(initializeFirebaseSync());
+    store.dispatch(initializeBackendSync());
     sendResponse({ success: true });
     return true;
   }
@@ -184,7 +183,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     store.dispatch(setSyncEnabled(true));
 
     chrome.storage.sync.set({ syncCode, syncEnabled: true }, () => {
-      store.dispatch(initializeFirebaseSync())
+      store.dispatch(initializeBackendSync())
         .then(() => sendResponse({ success: true }))
         .catch((error) => sendResponse({ success: false, error: error.message }));
     });

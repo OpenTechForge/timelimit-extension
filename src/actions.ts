@@ -22,14 +22,13 @@ import {
   SET_GLOBAL_BLOCKING_OVERRIDE,
   SET_LAST_SETTINGS_UPDATE_DATE
 } from './types';
-import { getDatabase, ref, off, update, onValue, set, serverTimestamp, Unsubscribe } from 'firebase/database';
 import { mergeUpdates, getLeastTimeLeft, matchDomain, formatTime } from './utils';
 import { configureStore } from '@reduxjs/toolkit';
 import { rootReducer } from './reducers';
 import { ports } from './background';
 import thunk from 'redux-thunk';
-import { initializeDatabase } from './firebase-config';
 import { cloneDeep } from 'lodash';
+import backendService from './services/BackendService';
 
 // Store setup
 const store = configureStore({
@@ -189,8 +188,8 @@ export function loadSettings(): ThunkAction<Promise<void>, AppState, unknown, Ac
           dispatch(setShowTimer(result.showTimer !== undefined ? result.showTimer : true));
           dispatch(setGlobalBlockingOverride(result.globalBlockingOverrideUntil || null));
           if (result.syncEnabled) {
-            console.log('Sync is enabled, initializing Firebase sync');
-            dispatch(initializeFirebaseSync());
+            console.log('Sync is enabled, initializing backend sync');
+            dispatch(initializeBackendSync());
           }
           resolve();
         }
@@ -199,12 +198,11 @@ export function loadSettings(): ThunkAction<Promise<void>, AppState, unknown, Ac
   };
 }
 
-export function initializeFirebaseSync(): ThunkAction<Promise<void>, AppState, unknown, Action<string>> {
-  return function (dispatch, getState): Promise<void> {
+export function initializeBackendSync(): ThunkAction<Promise<void>, AppState, unknown, Action<string>> {
+  return async function (dispatch, getState): Promise<void> {
     dispatch(setSyncInitialized(false));
-    console.log('Initializing Firebase sync');
+    console.log('Initializing backend sync');
 
-    initializeDatabase();
     const state = getState();
     const syncCode = state.syncCode;
 
@@ -213,62 +211,29 @@ export function initializeFirebaseSync(): ThunkAction<Promise<void>, AppState, u
       return Promise.reject(new Error('No sync code available for synchronization'));
     }
 
-    const db = getDatabase();
-    const refSettings = ref(db, 'syncCodes/' + syncCode + '/settings');
+    try {
+      await backendService.initialize();
+      const data = await backendService.loadSettings(syncCode);
 
-    return new Promise<void>((resolve, reject) => {
-      // First, handle the initial state by getting the current data once.
-      onValue(
-        refSettings,
-        (snapshot) => {
-          if (snapshot.exists()) {
-            const data = snapshot.val();
-            console.log('First initialization: overriding local settings with Firebase data');
-            dispatch(processUpdate(data)); // Replace local settings entirely with Firebase data
-            dispatch(updateStorage(false))
-              .then(() => {
-                resolve(); // Successfully initialized sync
-              })
-              .catch(reject);
-          } else {
-            console.log('No existing data in Firebase, uploading current settings');
-            dispatch(uploadCurrentSettingsToFirebase())
-              .then(() => {
-                resolve(); // Successfully uploaded local settings
-              })
-              .catch(reject);
-          }
+      if (data) {
+        console.log('First initialization: overriding local settings with backend data');
+        dispatch(processUpdate(data));
+      } else {
+        console.log('No existing data in backend, uploading current settings');
+        await dispatch(uploadCurrentSettingsToBackend());
+      }
 
-          // After the initial handling, subscribe to ongoing updates.
-          off(refSettings); // Unsubscribe from the initial snapshot listener.
-          // Set up a new listener for future updates.
-          onValue(
-            refSettings,
-            (snapshot) => {
-              if (snapshot.exists()) {
-                const data = snapshot.val();
-                dispatch(handleIncomingUpdate(data)); // Use merge logic for subsequent updates.
-              }
-            },
-            (error) => {
-              console.error('Error during Firebase sync update:', error);
-            }
-          );
-
-          console.log("done initializing");
-          dispatch(setSyncInitialized(true));
-          chrome.runtime.sendMessage({ action: 'syncSettingsChanged' });
-        },
-        (error) => {
-          console.error('Error initializing Firebase sync:', error);
-          reject(error); // Reject on error
-        }
-      );
-    });
+      backendService.subscribeToSettings(syncCode, (data) => { dispatch(handleIncomingUpdate(data))});
+      dispatch(setSyncInitialized(true));
+      chrome.runtime.sendMessage({ action: 'syncSettingsChanged' });
+    } catch (error) {
+      console.error('Error initializing backend sync:', error);
+      dispatch(setSyncInitialized(false));
+    }
   };
 }
 
-export function uploadCurrentSettingsToFirebase(): ThunkAction<Promise<void>, AppState, unknown, Action<string>> {
+export function uploadCurrentSettingsToBackend(): ThunkAction<Promise<void>, AppState, unknown, Action<string>> {
   return function (dispatch, getState) {
     const state = getState();
     const updates = {
@@ -280,16 +245,13 @@ export function uploadCurrentSettingsToFirebase(): ThunkAction<Promise<void>, Ap
     };
 
     const syncCode = state.syncCode;
-    const db = getDatabase();
-    const refSettings = ref(db, 'syncCodes/' + syncCode + '/settings');
-    console.log('Going to update', updates.settings);
 
-    return update(refSettings, updates.settings)
+    return backendService.uploadSettings(syncCode, updates.settings)
       .then(() => {
-        console.log('Successfully uploaded settings to Firebase');
+        console.log('Successfully uploaded settings to backend');
       })
       .catch((error) => {
-        console.error('Firebase update failed:', error);
+        console.error('Backend update failed:', error);
       });
   };
 }
@@ -311,7 +273,8 @@ export function processUpdate(mergedSettings: Settings): ThunkAction<void, AppSt
   };
 }
 
-export function updateStorage(updateFirebase = true): ThunkAction<Promise<void>, AppState, unknown, Action<string>> {
+
+export function updateStorage(updateBackend = true): ThunkAction<Promise<void>, AppState, unknown, Action<string>> {
   return function (dispatch, getState) {
     return new Promise<void>((resolve) => {
       const state = getState();
@@ -331,9 +294,9 @@ export function updateStorage(updateFirebase = true): ThunkAction<Promise<void>,
       console.log('Data to store in chrome.storage.sync:', dataToStore);
 
       chrome.storage.sync.set(dataToStore, function () {
-        if (state.syncEnabled && state.syncInitialized && updateFirebase) {
+        if (state.syncEnabled && state.syncInitialized && updateBackend) {
           dispatch(setLastUpdateTime(Date.now()));
-          dispatch(syncToFirebase()).then(resolve).catch(resolve);
+          dispatch(syncToBackend()).then(resolve).catch(resolve);
         } else {
           resolve();
         }
@@ -341,8 +304,6 @@ export function updateStorage(updateFirebase = true): ThunkAction<Promise<void>,
     });
   };
 }
-
-// src/actions.ts continued
 
 export function updateTimers(): ThunkAction<Promise<void>, AppState, unknown, Action<string>> {
   return function (dispatch, getState) {
@@ -410,26 +371,23 @@ export function updateTimers(): ThunkAction<Promise<void>, AppState, unknown, Ac
   };
 }
 
-export function syncToFirebase(): ThunkAction<Promise<void>, AppState, unknown, Action<string>> {
+export function syncToBackend(): ThunkAction<Promise<void>, AppState, unknown, Action<string>> {
   return function (dispatch, getState) {
     const state = getState();
     if (!state.syncEnabled || !state.syncInitialized || !state.syncCode) {
       return Promise.resolve();
     }
 
-    const db = getDatabase();
-    const refSettings = ref(db, 'syncCodes/' + state.syncCode + '/settings');
-
-    return update(refSettings, {
+    return backendService.uploadSettings(state.syncCode, {
       domainSets: { ...state.settings.domainSets },
       globalBlocking: state.settings.globalBlocking,
       lastSettingsUpdateDate: state.settings.lastSettingsUpdateDate || Date.now(),
     })
       .then(() => {
-        console.log('Firebase transaction completed successfully');
+        console.log('Backend transaction completed successfully');
       })
       .catch((error) => {
-        console.error('Firebase transaction failed:', error);
+        console.error('Backend transaction failed:', error);
       });
   };
 }
@@ -665,25 +623,21 @@ export function applySyncSettingsUpdate(
     
       if (!oldSyncEnabled && newSyncEnabled) {
         console.log('Sync was turned on');
-        promiseChain = dispatch(initializeFirebaseSync());
+        promiseChain = dispatch(initializeBackendSync());
       } else if (oldSyncEnabled && !newSyncEnabled) {
         console.log('Sync was turned off');
-        const db = getDatabase();
-        const refSettings = ref(db, 'syncCodes/' + oldSyncCode + '/settings');
-        off(refSettings);
-        console.log('Removed Firebase listeners');
+        backendService.removeListeners(oldSyncCode);
+        console.log('Removed backend listeners');
       } else if (newSyncEnabled && oldSyncCode !== newSyncCode) {
         console.log('Sync code was changed');
-        const db = getDatabase();
-        const refSettings = ref(db, 'syncCodes/' + oldSyncCode + '/settings');
-        off(refSettings);
-        console.log('Removed old Firebase listeners');
-        promiseChain = dispatch(initializeFirebaseSync());
+        backendService.removeListeners(oldSyncCode);
+        console.log('Removed old backend listeners');
+        promiseChain = dispatch(initializeBackendSync());
       }
-    
+
       return promiseChain.then(() => {
         dispatch(updateActiveTabTimer());
       });
-    });    
+    });
   };
 }
