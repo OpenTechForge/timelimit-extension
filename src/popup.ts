@@ -1,7 +1,7 @@
 import { formatTime } from './utils';
 
 let domainSets: { [key: string]: any } = {};
-let globalBlocking: { enabled: boolean; schedule: any[] } = { enabled: false, schedule: [] };
+let globalBlocking: { entries: any[] } = { entries: [] };
 
 document.addEventListener('DOMContentLoaded', () => {
   // Elements for sync settings
@@ -12,13 +12,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const syncDetails = document.getElementById('syncDetails') as HTMLElement;
   const copySyncCodeButton = document.getElementById('copySyncCodeButton') as HTMLElement;
 
-  // Event listeners for sign-in and sign-out
+  // Event listeners for sync actions
   openAuthPageBtn.addEventListener('click', () => {
     const authUrl = 'https://timelimit-extension.firebaseapp.com/auth.html';
     chrome.tabs.create({ url: authUrl });
   });
 
-  // Handle Sync Code Copy
   copySyncCodeButton.addEventListener('click', () => {
     const syncCode = syncCodeInput.value;
     if (syncCode) {
@@ -28,17 +27,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Handle sync enable/disable visibility
   syncEnabledCheckbox.addEventListener('change', () => {
     const isSyncEnabled = syncEnabledCheckbox.checked;
     syncDetails.style.display = isSyncEnabled ? 'block' : 'none';
   });
 
-  // Save Sync Settings
   saveSyncButton.addEventListener('click', () => {
     const syncEnabled = syncEnabledCheckbox.checked;
     const syncCode = syncCodeInput.value.trim();
-
 
     chrome.runtime.sendMessage(
       {
@@ -49,7 +45,7 @@ document.addEventListener('DOMContentLoaded', () => {
       (response) => {
         if (response.success) {
           console.log('Saved sync settings in popup!');
-          loadSettings(); // Now, this runs only after the settings are updated in the background script
+          loadSettings();
         } else {
           console.error('Failed to save sync settings:', response.error);
         }
@@ -59,10 +55,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Event listeners for UI interactions
   document.getElementById('addDomainSet')!.addEventListener('click', addDomainSet);
-  document.getElementById('saveGlobalBlocking')!.addEventListener('click', saveGlobalBlockingSettings);
+  document.getElementById('addGlobalBlockingEntry')!.addEventListener('click', addGlobalBlockingEntry);
+  document.getElementById('saveGlobalBlocking')?.addEventListener('click', saveGlobalBlockingSettings);
   document.getElementById('domainSets')!.addEventListener('change', saveDomainSets);
   document.getElementById('showTimer')!.addEventListener('change', (e) => {
-    console.log("update show timer");
     chrome.runtime.sendMessage(
       {
         action: 'updateShowTimer',
@@ -80,7 +76,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Function to render domain sets
 function renderDomainSets(): void {
-  console.log('Rendering domain sets in popup!');
   const container = document.getElementById('domainSets') as HTMLElement;
   container.innerHTML = '';
 
@@ -106,14 +101,53 @@ function renderDomainSets(): void {
 
 // Function to render global blocking settings
 function renderGlobalBlocking(): void {
-  const globalBlockingEnabled = document.getElementById('globalBlockingEnabled') as HTMLInputElement;
-  globalBlockingEnabled.checked = globalBlocking.enabled;
-  if (globalBlocking.schedule && globalBlocking.schedule.length > 0) {
-    const startTime = document.getElementById('globalBlockingStart') as HTMLInputElement;
-    const endTime = document.getElementById('globalBlockingEnd') as HTMLInputElement;
-    startTime.value = globalBlocking.schedule[0].startTime;
-    endTime.value = globalBlocking.schedule[0].endTime;
-  }
+  const container = document.getElementById('globalBlockingList') as HTMLElement;
+  container.innerHTML = '';
+
+  globalBlocking.entries.forEach((entry, index) => {
+    const div = document.createElement('div');
+    div.className = 'global-blocking-entry';
+    div.dataset.index = index.toString();
+    div.innerHTML = `
+      <h4>Global Blocking Entry ${index + 1}</h4>
+      <label>
+        <input type="checkbox" ${entry.enabled ? 'checked' : ''} class="global-blocking-enabled">
+        Enable Global Blocking
+      </label>
+      <div>
+        <label>Start Time:</label>
+        <input type="time" value="${entry.schedule[0].startTime}" class="global-blocking-start">
+      </div>
+      <div>
+        <label>End Time:</label>
+        <input type="time" value="${entry.schedule[0].endTime}" class="global-blocking-end">
+      </div>
+      <div>
+        <label>Whitelist Domains (comma-separated):</label>
+        <input type="text" value="${(entry.whitelist || []).join(',')}" class="global-blocking-whitelist">
+      </div>
+      <button class="delete-global-blocking">Delete Entry</button>
+    `;
+    div.querySelector('.delete-global-blocking')!.addEventListener('click', () => deleteGlobalBlockingEntry(index));
+    container.appendChild(div);
+  });
+}
+
+// Function to add a new global blocking entry
+function addGlobalBlockingEntry(): void {
+  const newEntry = {
+    enabled: false,
+    schedule: [{ days: [0, 1, 2, 3, 4, 5, 6], startTime: '', endTime: '' }],
+    whitelist: [],
+  };
+  globalBlocking.entries.push(newEntry);
+  renderGlobalBlocking();
+}
+
+// Function to delete a global blocking entry
+function deleteGlobalBlockingEntry(index: number): void {
+  globalBlocking.entries.splice(index, 1);
+  renderGlobalBlocking();
 }
 
 // Function to save domain sets
@@ -228,16 +262,24 @@ function parseTime(timeString: string): number {
 
 // Function to save global blocking settings
 function saveGlobalBlockingSettings(): void {
-  const enabled = (document.getElementById('globalBlockingEnabled') as HTMLInputElement).checked;
-  const schedule = [
-    {
-      days: [0, 1, 2, 3, 4, 5, 6], // Optionally allow selecting specific days
-      startTime: (document.getElementById('globalBlockingStart') as HTMLInputElement).value,
-      endTime: (document.getElementById('globalBlockingEnd') as HTMLInputElement).value,
-    },
-  ];
+  const entries = Array.from(document.querySelectorAll('.global-blocking-entry')).map((div) => {
+    return {
+      enabled: (div.querySelector('.global-blocking-enabled') as HTMLInputElement).checked,
+      schedule: [
+        {
+          days: [0, 1, 2, 3, 4, 5, 6],
+          startTime: (div.querySelector('.global-blocking-start') as HTMLInputElement).value,
+          endTime: (div.querySelector('.global-blocking-end') as HTMLInputElement).value,
+        },
+      ],
+      whitelist: (div.querySelector('.global-blocking-whitelist') as HTMLInputElement)
+        .value.split(',')
+        .map((d) => d.trim())
+        .filter((d) => d !== ''),
+    };
+  });
 
-  globalBlocking = { enabled, schedule };
+  globalBlocking.entries = entries;
 
   chrome.runtime.sendMessage(
     {
@@ -262,7 +304,7 @@ function loadSettings(): void {
   chrome.runtime.sendMessage({ action: 'getFullState' }, (response) => {
     const settings = response.settings || {};
     domainSets = settings.domainSets || {};
-    globalBlocking = settings.globalBlocking || { enabled: false, schedule: [] };
+    globalBlocking = settings.globalBlocking || { entries: [] };
 
     const syncEnabledCheckbox = document.getElementById('syncEnabled') as HTMLInputElement;
     const syncCodeInput = document.getElementById('syncCodeInput') as HTMLInputElement;

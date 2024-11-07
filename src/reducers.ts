@@ -1,16 +1,13 @@
 // reducers.ts
 
-import { Settings, DomainSet, GlobalBlocking, AppState } from './types'; // Assuming types are defined
+import { Settings, DomainSet, GlobalBlocking, GlobalBlockingEntry, AppState } from './types'; // Assuming types are defined
 import { cloneDeep } from 'lodash';
 
 // Initial state
 const initialState: AppState = {
   settings: {
     domainSets: {},
-    globalBlocking: {
-      enabled: false,
-      schedule: [],
-    },
+    globalBlocking: [],  // Update to support multiple blocking entries
     lastSettingsUpdateDate: Date.now()
   },
   syncEnabled: false,
@@ -54,7 +51,7 @@ export function rootReducer(state = initialState, action: any): AppState {
         ...state,
         settings: {
           ...state.settings,
-          globalBlocking: cloneDeep(action.payload),
+          globalBlocking: cloneDeep(action.payload), // Update to handle multiple global blocking entries
         },
       };
 

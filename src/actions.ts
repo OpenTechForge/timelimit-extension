@@ -52,8 +52,12 @@ interface UpdateDomainSetsAction extends Action<typeof UPDATE_DOMAIN_SETS> {
   payload: { [key: string]: DomainSet };
 }
 
-interface SetGlobalBlockingAction extends Action<typeof SET_GLOBAL_BLOCKING> {
+interface SetGlobalBlockingEntriesAction extends Action<typeof SET_GLOBAL_BLOCKING> {
   payload: GlobalBlocking;
+}
+
+export function setGlobalBlockingEntries(globalBlocking: GlobalBlocking): SetGlobalBlockingEntriesAction {
+  return { type: SET_GLOBAL_BLOCKING, payload: globalBlocking };
 }
 
 interface SetSyncEnabledAction extends Action<typeof SET_SYNC_ENABLED> {
@@ -103,10 +107,6 @@ export function setDomainSets(domainSets: { [key: string]: DomainSet }): SetDoma
 
 export function updateDomainSets(updates: { [key: string]: DomainSet }): UpdateDomainSetsAction {
   return { type: UPDATE_DOMAIN_SETS, payload: updates };
-}
-
-export function setGlobalBlocking(globalBlocking: GlobalBlocking): SetGlobalBlockingAction {
-  return { type: SET_GLOBAL_BLOCKING, payload: globalBlocking };
 }
 
 export function setSyncEnabled(enabled: boolean): SetSyncEnabledAction {
@@ -161,8 +161,7 @@ export function loadSettings(): ThunkAction<Promise<void>, AppState, unknown, Ac
           const settings: Settings = result.settings || {
             domainSets: {},
             globalBlocking: {
-              enabled: false,
-              schedule: [],
+              entries: [],
             },
             lastSettingsUpdateDate: Date.now(),
             lastUpdateTime: Date.now(),
@@ -443,7 +442,7 @@ export function isGlobalBlockingActive(state: AppState): boolean {
   const globalBlocking = state.settings.globalBlocking;
   const globalBlockingOverrideUntil = state.globalBlockingOverrideUntil;
 
-  if (!globalBlocking.enabled || globalBlocking.schedule.length === 0) {
+  if (!globalBlocking.entries || globalBlocking.entries.length === 0) {
     return false;
   }
 
@@ -457,20 +456,32 @@ export function isGlobalBlockingActive(state: AppState): boolean {
   const currentDay = nowDate.getDay();
   const currentTime = nowDate.getHours() * 60 + nowDate.getMinutes();
 
-  return globalBlocking.schedule.some(function (schedule) {
-    const [startHour, startMinute] = schedule.startTime.split(':').map(Number);
-    const [endHour, endMinute] = schedule.endTime.split(':').map(Number);
-    const startTimeMinutes = startHour * 60 + startMinute;
-    const endTimeMinutes = endHour * 60 + endMinute;
+  for (const entry of globalBlocking.entries) {
+    if (!entry.enabled) continue;
 
-    if (schedule.days.indexOf(currentDay) !== -1) {
-      if (startTimeMinutes > endTimeMinutes) {
-        return currentTime >= startTimeMinutes || currentTime < endTimeMinutes;
-      }
-      return currentTime >= startTimeMinutes && currentTime < endTimeMinutes;
+    if (entry.whitelist && entry.whitelist.some(domain => matchDomain(state.activeTabDomain, domain, false))) {
+      continue; // Skip if the domain is in the whitelist.
     }
-    return false;
-  });
+
+    if(entry.schedule.some(function (schedule) {
+      const [startHour, startMinute] = schedule.startTime.split(':').map(Number);
+      const [endHour, endMinute] = schedule.endTime.split(':').map(Number);
+      const startTimeMinutes = startHour * 60 + startMinute;
+      const endTimeMinutes = endHour * 60 + endMinute;
+  
+      if (schedule.days.indexOf(currentDay) !== -1) {
+        if (startTimeMinutes > endTimeMinutes) {
+          return currentTime >= startTimeMinutes || currentTime < endTimeMinutes;
+        }
+        return currentTime >= startTimeMinutes && currentTime < endTimeMinutes;
+      }
+      return false;
+    }))
+    {
+      return true;
+    }
+  }
+  return false;
 }
 
 export function resetTimer(setId: string): ThunkAction<Promise<void>, AppState, unknown, Action<string>> {
