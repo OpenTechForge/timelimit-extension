@@ -29,9 +29,10 @@ export interface DomainSet {
   lastResetDate?: number;
 }
 
-export interface GlobalBlocking {
+export interface GlobalBlockingEntry {
   enabled: boolean;
   schedule: Schedule[];
+  whitelist: string[];
 }
 
 export interface Schedule {
@@ -42,7 +43,7 @@ export interface Schedule {
 
 export interface Settings {
   domainSets: { [key: string]: DomainSet };
-  globalBlocking: GlobalBlocking;
+  globalBlocking: GlobalBlockingEntry[];
   lastSettingsUpdateDate: number;
 }
 
