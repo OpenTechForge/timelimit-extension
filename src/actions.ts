@@ -312,12 +312,24 @@ export function updateTimers(): ThunkAction<Promise<void>, AppState, unknown, Ac
     dispatch(startUpdatingTimers());
 
     const now = Date.now();
+    const midnight = now - now % (24 * 60 * 60 * 1000)
     const secondsPassedSinceUpdate = (now - state.lastUpdateTime) / 1000;
     const updates: { [key: string]: DomainSet } = {};
 
     const domainSets = state.settings.domainSets;
     Object.values(domainSets).forEach(function (set) {
-      if (
+      if (!set.lastResetDate || midnight > set.lastResetDate)
+      {
+        updates[set.id] = {
+          ...cloneDeep(set),
+          timeSpent: 0,
+          timeLeft: set.timeLimit,
+          lastResetDate: now,
+          lastSessionStart: now,
+          lastSessionEnd: now,
+        };
+      }
+      else if (
         set.domains.some(function (d) {
           return matchDomain(state.activeTabDomain, d, set.strictMode);
         })
